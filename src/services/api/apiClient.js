@@ -1,7 +1,20 @@
 import axios from 'axios';
-import {
-	store
-} from '../../redux/store';
+import { store } from '../../redux/store';
+import { refreshTokenThnk } from '../../redux/reducers/auth/authSlice';
+
+let isRefreshing = false;
+let failedQueue = [];
+
+const processQueue = (error, token = null) => {
+    failedQueue.forEach(prom => {
+        if (error) {
+            prom.reject(error);
+        } else {
+            prom.resolve(token);
+        }
+    });
+    failedQueue = [];
+};
 
 const apiClient = axios.create({
 	baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000',
@@ -27,20 +40,52 @@ apiClient.interceptors.request.use((config) => {
 	return Promise.reject(error);
 });
 
-// apiClient.interceptors.response.use(
-// 	(response) => {
-// 		return response;
-// 	},
-// 	(error) => {
-// 		console.error('API Error:', {
-// 			url: error.config?.url,
-// 			status: error.response?.status,
-// 			message: error.message,
-// 			response: error.response?.data
-// 		});
-// 		return Promise.reject(error);
-// 	}
-// );
+// Fix the interceptor to use apiClient instead of axios
+apiClient.interceptors.response.use(
+    response => response,
+    async error => {
+        const originalRequest = error.config;
+        const resData = error.response?.data;
+		
+        const isUnauthorized = error.response?.status === 401;
+        const isTokenExpired = resData?.message?.toLowerCase().includes('token expired'); // adjust this if your backend uses a different message
+
+        if (isUnauthorized && isTokenExpired && !originalRequest._retry) {
+            if (isRefreshing) {
+                return new Promise((resolve, reject) => {
+                    failedQueue.push({ resolve, reject });
+                }).then(token => {
+                    originalRequest.headers['Authorization'] = 'Bearer ' + token;
+                    return apiClient(originalRequest);
+                }).catch(err => {
+                    return Promise.reject(err);
+                });
+            }
+
+            originalRequest._retry = true;
+            isRefreshing = true;
+
+            try {
+                const { payload } = await store.dispatch(refreshTokenThnk());
+                const newToken = payload.token;
+
+                apiClient.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+                originalRequest.headers['Authorization'] = `Bearer ${newToken}`;
+
+                processQueue(null, newToken);
+                return apiClient(originalRequest);
+            } catch (e) {
+                processQueue(e, null);
+                return Promise.reject(e);
+            } finally {
+                isRefreshing = false;
+            }
+        }
+
+        return Promise.reject(error);
+    }
+);
+
 
 // Reusable HTTP methods
 const GET = async (endpoint, config = {}) => {

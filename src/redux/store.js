@@ -9,7 +9,7 @@ import authSlice from "./reducers/auth/authSlice";
 const authPersistConfig = {
 	key: "authPersist", // persisted under "auth"
 	storage,
-    whitelist: ['isAuthenticated', 'token', 'expiresIn', 'user'] // Only persist these fields
+    whitelist: ['isAuthenticated', 'token', 'expiresIn', 'user', 'lastLogin', 'refreshToken', 'refreshTokenExpiresAt', 'lastRefreshed'] // Only persist these fields
 };
 
 // Wrap only authSlice with persist logic
@@ -17,7 +17,7 @@ const persistedAuthReducer = persistReducer(authPersistConfig, authSlice);
 
 // Combine all reducers
 const rootReducer = {
-	authhentication: persistedAuthReducer, // persisted reducer
+	authentication: persistedAuthReducer, // persisted reducer
 	//   user: userSlice,            // non-persisted reducer
 };
 

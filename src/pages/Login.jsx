@@ -11,7 +11,7 @@ const Login = () => {
     const navigate = useNavigate();
     
     // Get auth state from Redux
-    const { isLoading, errorMessage, error, isAuthenticated } = useSelector((state) => state.authhentication);
+    const { isLoading, errorMessage, error, isAuthenticated } = useSelector((state) => state.authentication);
 
     useEffect(() => {
         if (error) {
@@ -60,7 +60,7 @@ const Login = () => {
     return (
         <div style={{ maxWidth: '400px', margin: '50px auto', padding: '20px' }}>
             <h2>Login</h2>
-            
+            {/* <pre>{JSON.stringify({ errorMessage, error }, null, 2)}</pre> */}
             {(localError || errorMessage) && (
                 <div style={{ 
                     color: 'red', 

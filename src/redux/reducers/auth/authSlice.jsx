@@ -14,7 +14,11 @@ export const loginUser = createAsyncThunk(
 			return {
 				token: response.data.token,
                 expiresIn: response.data.expires_in,
-                user: response.data.user
+				refreshToken: response.data.refresh_token,
+				refreshTokenExpiresAt: response.data.refresh_token_expires_in,
+				lastLogin: response.data.last_login,
+				lastRefreshed: response.data.last_refreshed,
+                user: response.data.user,
 			};
 
 		} catch (error) {
@@ -26,30 +30,66 @@ export const loginUser = createAsyncThunk(
 	}
 );
 
+export const refreshTokenThnk = createAsyncThunk(
+    'auth/refreshToken',
+    async (_, { getState, rejectWithValue }) => {
+        try {
+            const { authentication } = getState();
+			// console.warn("asyn thnk:", authentication.refreshToken);
+            if (!authentication.refreshToken) {
+                throw new Error('No refresh token available');
+            }
+            const response = await authService.refreshTokenAuth(authentication.refreshToken);
+			// console.warn("From Refresh Thunk:", response);
+            if (!response.success) {
+                throw new Error(response.error);
+            }
+            return {
+                token: response.data.token,
+                expiresIn: response.data.expires_in,
+                refreshToken: response.data.refresh_token,
+				refreshTokenExpiresAt: response.data.refresh_token_expires_in,
+				lastLogin: response.data.last_login,
+				lastRefreshed: response.data.last_refreshed,
+                user: response.data.user || authentication.user // Keep existing user if not returned
+            };
+        } catch (error) {
+            return rejectWithValue({
+                message: error.response?.data?.message || error.message,
+                status: error.response?.status || 500,
+            });
+        }
+    }
+);
+
+const initialState = {
+    isAuthenticated: false,
+    isLoading: false,
+    token: null,
+    expiresIn: null,
+    refreshToken: null,
+	refreshTokenExpiresAt: null,
+    lastLogin: null,
+	lastRefreshed: null,
+    user: null,
+    error: false,
+    errorMessage: "",
+};
+
 const authSlice = createSlice({
 	name: "auth",
-	initialState: {
-		isAuthenticated: false,
-		isLoading: false,
-        token: null,
-        expiresIn: null,
-		user: null,
-		error: false,
-		errorMessage: "",
-	},
+	initialState,
 	reducers: {
 		login: (state, action) => {
 			state.isAuthenticated = true;
 			state.user = action.payload;
 		},
 		logout: (state) => {
-			state.isAuthenticated = false;
-			state.isLoading = false;
-			state.user = null;
-			state.token = null;
-            state.expiresIn = null;
-			state.error = false;
-			state.errorMessage = "";
+			Object.assign(state, initialState);
+		},
+		errorSetup: (state, action) => {
+			state.error = true;
+			state.errorMessage = action.payload.errorMessage || "Error while setting up the error message.";
 		},
 		errorClean: (state) => {
 			state.error = false;
@@ -68,6 +108,10 @@ const authSlice = createSlice({
 			state.errorMessage = "";
             state.token = action.payload.token;
             state.expiresIn = action.payload.expiresIn;
+			state.refreshToken = action.payload.refreshToken;
+			state.refreshTokenExpiresAt = action.payload.refreshTokenExpiresAt;
+			state.lastLogin = action.payload.lastLogin;
+			state.lastRefreshed = action.payload.lastRefreshed;
             state.user = action.payload.user;
 		});
 		builder.addCase(loginUser.rejected, (state, action) => {
@@ -76,15 +120,54 @@ const authSlice = createSlice({
             state.isAuthenticated = false;
             state.token = null;
             state.expiresIn = null;
+			state.lastLogin = null;
+			state.lastRefreshed = null;
+			state.refreshToken = null;
+			state.refreshTokenExpiresAt = null;
             state.user = null;
 			state.errorMessage = action.payload.message;
 		});
-	},
+
+		builder.addCase(refreshTokenThnk.pending, (state) => {
+            state.isLoading = true;
+            state.error = false;
+        });
+        builder.addCase(refreshTokenThnk.fulfilled, (state, action) => {
+			state.isLoading = false;
+			state.error = null;
+			state.isAuthenticated = true;
+			state.errorMessage = "";
+            state.token = action.payload.token;
+            state.expiresIn = action.payload.expiresIn;
+			state.refreshToken = action.payload.refreshToken;
+			state.refreshTokenExpiresAt = action.payload.refreshTokenExpiresAt;
+			state.lastLogin = action.payload.lastLogin;
+			state.lastRefreshed = action.payload.lastRefreshed;
+            state.user = action.payload.user;
+        });
+        builder.addCase(refreshTokenThnk.rejected, (state, action) => {
+            state.isLoading = false;
+			state.error = true;
+            state.isAuthenticated = false;
+            state.token = null;
+            state.expiresIn = null;
+			state.refreshToken = null;
+			state.refreshTokenExpiresAt = null;
+			state.lastLogin = null;
+			state.lastRefreshed = null;
+            state.user = null;
+			state.errorMessage = action.payload.message;
+			
+            // Optionally logout on refresh failure
+            // return initialState;
+        });
+    },
 });
 
 export const {
 	login,
 	logout,
+	errorSetup,
 	errorClean
 } = authSlice.actions;
 export default authSlice.reducer;

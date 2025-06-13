@@ -1,6 +1,6 @@
 import React from 'react';
 import { useDispatch } from 'react-redux';
-import { logout } from '../redux/reducers/auth/authSlice'; // adjust the path if needed
+import { logout, refreshTokenThnk } from '../redux/reducers/auth/authSlice'; // adjust the path if needed
 import { useNavigate } from 'react-router-dom';
 
 const Dashboard = () => {
@@ -8,7 +8,8 @@ const Dashboard = () => {
   const navigate = useNavigate();
 
   const handleLogout = () => {
-    dispatch(logout());           // Clear auth state
+    dispatch(logout()); 
+    // dispatch(refreshTokenThnk());           // Clear auth state
     navigate('/login');           // Redirect to login page
   };
 

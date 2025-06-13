@@ -6,7 +6,6 @@ export const authService = {
 	login: async (credentials) => {
 		try {
 			const response = await API.POSTWH('auth/token', credentials);
-			// console.log('Auth Service - Login response', response);
 
 			if (!response?.success) {
 				throw new Error(response?.message || 'Login failed');
@@ -24,6 +23,31 @@ export const authService = {
 					status: error?.response?.status || 500,
 					data: {
 						message: error?.response?.data?.message || error?.message || 'Login failed',
+					},
+				},
+			};
+		}
+	},
+
+	refreshTokenAuth: async (refreshToken) => {
+		try {
+			const response = await API.POSTWH('auth/refresh', { refresh_token: refreshToken });
+			if (!response?.success) {
+				throw new Error(response?.message || 'Failed to get refresh token');
+			}
+			return {
+				success: true,
+				data: response.data
+			};
+		} 
+		catch (error) {
+			// Normalize Axios or custom-thrown errors
+			throw {
+				response: {
+					success: false,
+					status: error?.response?.status || 500,
+					data: {
+						message: error?.response?.data?.message || error?.message || 'Failed to refresh token',
 					},
 				},
 			};
